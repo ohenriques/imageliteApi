@@ -1,6 +1,7 @@
 package com.image.liteApi.controller;
 
 import com.image.liteApi.domain.entity.Image;
+import com.image.liteApi.domain.enums.ImageExtension;
 import com.image.liteApi.domain.service.ImageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,12 +16,13 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.io.IOException;
 import java.net.URI;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/v1/images")
 @Slf4j
 @RequiredArgsConstructor
-public class ImagesController {
+public class ImageController {
 
     private final ImageService service;
     private final ImageMapper mapper;
@@ -42,6 +44,16 @@ public class ImagesController {
         return ResponseEntity.created(imageUrlCreated).build();
     }
 
+    @GetMapping("all")
+    public ResponseEntity<Image[]> getAll() {
+
+        List<Image> imageList = service.getAllImages();
+
+        Image[] images = imageList.toArray(new Image[imageList.size()]);
+
+        return ResponseEntity.ok(images);
+    }
+
     @GetMapping("{id}")
     public ResponseEntity<byte[]> getImages(@PathVariable String id) {
         var possibleImage = service.getById(id);
@@ -59,6 +71,21 @@ public class ImagesController {
         return new ResponseEntity<>(image.getFile(), headers, HttpStatus.OK);
     }
 
+    @GetMapping
+    public ResponseEntity<List<ImageDTO>> search(
+            @RequestParam(value = "extension", required = false, defaultValue = "") String extension,
+            @RequestParam(value = "query", required = false) String query
+    ) {
+        var result = service.search(ImageExtension.ofName(extension), query);
+
+        var images = result.stream().map(image -> {
+            var url = buildImageURL(image);
+            return mapper.imageToDTO(image, url.toString());
+        }).collect(Collectors.toList());
+
+        return ResponseEntity.ok(images);
+    }
+
     @DeleteMapping
     public ResponseEntity delete() {
 
@@ -71,7 +98,7 @@ public class ImagesController {
         String imagePath = "/" + image.getId();
 
         return ServletUriComponentsBuilder
-                .fromCurrentContextPath()
+                .fromCurrentRequestUri()
                 .path(imagePath)
                 .build()
                 .toUri();
